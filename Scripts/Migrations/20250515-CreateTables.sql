@@ -1,0 +1,12 @@
+
+IF NOT EXISTS (
+    SELECT * FROM INFORMATION_SCHEMA.TABLES 
+    WHERE TABLE_SCHEMA = 'dbo' 
+      AND TABLE_NAME = 'SampleTable'
+)
+BEGIN
+    CREATE TABLE dbo.SampleTable (
+        Id INT PRIMARY KEY,
+        Name NVARCHAR(100)
+    );
+END
