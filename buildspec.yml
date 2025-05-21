@@ -1,0 +1,14 @@
+version: 0.2
+
+phases:
+  install:
+    runtime-versions:
+      dotnet: 9.0
+  build:
+    commands:
+      - echo "Restoring packages..."
+      - dotnet restore
+      - echo "Building project..."
+      - dotnet build -c Release
+      - echo "Running DbUp migration..."
+      - dotnet DbUpSqlServerPOC.dll
