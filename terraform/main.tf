@@ -4,7 +4,7 @@ provider "aws" {
 
 # --- S3 Bucket for Artifacts ---
 resource "aws_s3_bucket" "dbup_artifacts" {
-  bucket = "dbup-artifacts-bucket"
+  bucket = "my-dbup-dev-bucket"
 
   versioning {
     enabled = true
@@ -22,22 +22,49 @@ resource "aws_iam_role" "codebuild_service_role" {
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Principal = {
+        Service = "codebuild.amazonaws.com"
+      }
+      Action = "sts:AssumeRole"
+    }]
+  })
+}
+
+# --- IAM Policy to allow CodeBuild to read from S3 ---
+resource "aws_iam_policy" "codebuild_s3_access_policy" {
+  name        = "codebuild-s3-access-policy"
+  description = "Allow CodeBuild to read from the artifact bucket"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
     Statement = [
       {
-        Effect = "Allow"
-        Principal = {
-          Service = "codebuild.amazonaws.com"
-        }
-        Action = "sts:AssumeRole"
+        Effect   = "Allow"
+        Action   = [
+          "s3:GetObject",
+          "s3:GetObjectVersion",
+          "s3:ListBucket"
+        ]
+        Resource = [
+          aws_s3_bucket.dbup_artifacts.arn,
+          "${aws_s3_bucket.dbup_artifacts.arn}/*"
+        ]
       }
     ]
   })
 }
 
-# --- IAM Policy Attachment for CodeBuild Role ---
-resource "aws_iam_role_policy_attachment" "codebuild_policy" {
+# --- Attach AWS Managed and Custom Policy ---
+resource "aws_iam_role_policy_attachment" "codebuild_managed_policy" {
   role       = aws_iam_role.codebuild_service_role.name
   policy_arn = "arn:aws:iam::aws:policy/AWSCodeBuildDeveloperAccess"
+}
+
+resource "aws_iam_role_policy_attachment" "codebuild_s3_policy" {
+  role       = aws_iam_role.codebuild_service_role.name
+  policy_arn = aws_iam_policy.codebuild_s3_access_policy.arn
 }
 
 # --- CodeBuild Project ---
@@ -47,7 +74,7 @@ resource "aws_codebuild_project" "dbup_project" {
 
   source {
     type      = "S3"
-    location  = "${aws_s3_bucket.dbup_artifacts.bucket}/dbup.zip" # <- Object key is needed
+    location  = "${aws_s3_bucket.dbup_artifacts.bucket}/dbup.zip" # actual S3 object
     buildspec = "buildspec.yml"
   }
 
@@ -68,4 +95,9 @@ resource "aws_codebuild_project" "dbup_project" {
   }
 
   service_role = aws_iam_role.codebuild_service_role.arn
+
+  tags = {
+    Environment = "Dev"
+    Project     = "DbUp"
+  }
 }
