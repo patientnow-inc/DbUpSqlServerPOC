@@ -36,27 +36,34 @@ jobs:
       - name: Set environment-specific variables
         id: set-vars
         run: |
-          if [ "${{ github.event.inputs.environment }}" == "dev" ]; then
+          echo "Selected environment: ${{ github.event.inputs.environment }}"
+          if [ "${{ github.event.inputs.environment }}" = "dev" ]; then
             echo "S3_BUCKET=${{ vars.S3_BUCKET_DEV }}" >> $GITHUB_ENV
             echo "CODEBUILD_PROJECT=${{ vars.CODEBUILD_PROJECT_DEV }}" >> $GITHUB_ENV
-          elif [ "${{ github.event.inputs.environment }}" == "staging" ]; then
+          elif [ "${{ github.event.inputs.environment }}" = "staging" ]; then
             echo "S3_BUCKET=${{ vars.S3_BUCKET_STAGING }}" >> $GITHUB_ENV
             echo "CODEBUILD_PROJECT=${{ vars.CODEBUILD_PROJECT_STAGING }}" >> $GITHUB_ENV
-          elif [ "${{ github.event.inputs.environment }}" == "prod" ]; then
+          elif [ "${{ github.event.inputs.environment }}" = "prod" ]; then
             echo "S3_BUCKET=${{ vars.S3_BUCKET_PROD }}" >> $GITHUB_ENV
             echo "CODEBUILD_PROJECT=${{ vars.CODEBUILD_PROJECT_PROD }}" >> $GITHUB_ENV
+          else
+            echo "Invalid environment"
+            exit 1
           fi
 
+      - name: Zip publish directory
+        run: zip -r dbup.zip ./publish
+
       - name: Upload published files to S3
-        run: aws s3 cp ./publish s3://$S3_BUCKET/ --recursive
+        run: aws s3 cp dbup.zip s3://$S3_BUCKET/dbup.zip
         env:
-          AWS_REGION: us-east-1
+          AWS_REGION: us-east-2
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 
       - name: Trigger CodeBuild deployment
         run: aws codebuild start-build --project-name $CODEBUILD_PROJECT
         env:
-          AWS_REGION: us-east-1
+          AWS_REGION: us-east-2
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
