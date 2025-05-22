@@ -7,10 +7,13 @@ using DbUp;
 using DbUp.Engine;
 using DbUp.Helpers;
 using System.Collections.Generic;
+using DbUpSqlServerPOC;
+using System.Text.Json;
+using System.Threading.Tasks;
 
 class Program
 {
-    static int Main(string[] args)
+    static async Task<int> Main(string[] args)
     {
         Console.WriteLine("Working Directory: " + Directory.GetCurrentDirectory());
 
@@ -23,6 +26,29 @@ class Program
             .AddEnvironmentVariables();
 
         var config = builder.Build();
+
+        var secretName = config["AWS:SecretsManagerSecretName"];
+        var region = config["AWS:Region"];
+
+        if (string.IsNullOrEmpty(secretName))
+        {
+            Console.WriteLine("AWS SecretsManagerSecretName is not configured.");
+            return 1;
+        }
+
+        if (string.IsNullOrEmpty(region))
+        {
+            region = "us-east-1"; // default region if not set
+        }
+
+        var awsSecretsHelper = new AwsSecretsManagerHelper();
+
+        string secretJson = await awsSecretsHelper.GetSecretAsync(secretName, region);
+
+        var secretData = JsonSerializer.Deserialize<Dictionary<string, string>>(secretJson);
+
+      //  string connectionString = secretData["DefaultConnection"];       
+
         var connectionString = config.GetConnectionString("DefaultConnection");
 
         Console.WriteLine($"Running in Environment: {environment}");
