@@ -33,18 +33,30 @@ jobs:
       - name: Publish DbUp project
         run: dotnet publish ./DbUpSqlServerPOC.csproj -c Release -o ./publish
 
-      - name: Upload published files to environment-specific S3 bucket
+      - name: Set environment-specific variables
+        id: set-vars
+        run: |
+          if [ "${{ github.event.inputs.environment }}" == "dev" ]; then
+            echo "S3_BUCKET=${{ vars.S3_BUCKET_DEV }}" >> $GITHUB_ENV
+            echo "CODEBUILD_PROJECT=${{ vars.CODEBUILD_PROJECT_DEV }}" >> $GITHUB_ENV
+          elif [ "${{ github.event.inputs.environment }}" == "staging" ]; then
+            echo "S3_BUCKET=${{ vars.S3_BUCKET_STAGING }}" >> $GITHUB_ENV
+            echo "CODEBUILD_PROJECT=${{ vars.CODEBUILD_PROJECT_STAGING }}" >> $GITHUB_ENV
+          elif [ "${{ github.event.inputs.environment }}" == "prod" ]; then
+            echo "S3_BUCKET=${{ vars.S3_BUCKET_PROD }}" >> $GITHUB_ENV
+            echo "CODEBUILD_PROJECT=${{ vars.CODEBUILD_PROJECT_PROD }}" >> $GITHUB_ENV
+          fi
+
+      - name: Upload published files to S3
         run: aws s3 cp ./publish s3://$S3_BUCKET/ --recursive
         env:
           AWS_REGION: us-east-1
-          S3_BUCKET: ${{ vars[format('S3_BUCKET_{0}', github.event.inputs.environment | upper)] }}
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 
-      - name: Trigger environment-specific CodeBuild project
+      - name: Trigger CodeBuild deployment
         run: aws codebuild start-build --project-name $CODEBUILD_PROJECT
         env:
           AWS_REGION: us-east-1
-          CODEBUILD_PROJECT: ${{ vars[format('CODEBUILD_PROJECT_{0}', github.event.inputs.environment | upper)] }}
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
