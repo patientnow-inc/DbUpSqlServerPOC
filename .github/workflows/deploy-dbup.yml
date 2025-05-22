@@ -1,12 +1,22 @@
 name: Deploy DbUp
 
 on:
-  push:
-    branches: [ master ]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          - staging
+          - prod
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment }}
 
     steps:
       - name: Checkout repository
@@ -23,18 +33,18 @@ jobs:
       - name: Publish DbUp project
         run: dotnet publish ./DbUpSqlServerPOC.csproj -c Release -o ./publish
 
-      - name: Upload published files to S3
+      - name: Upload published files to environment-specific S3 bucket
         run: aws s3 cp ./publish s3://$S3_BUCKET/ --recursive
         env:
           AWS_REGION: us-east-1
-          S3_BUCKET: ${{ vars.S3_BUCKET }}
+          S3_BUCKET: ${{ vars[format('S3_BUCKET_{0}', github.event.inputs.environment | upper)] }}
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 
-      - name: Trigger CodeBuild deployment
+      - name: Trigger environment-specific CodeBuild project
         run: aws codebuild start-build --project-name $CODEBUILD_PROJECT
         env:
           AWS_REGION: us-east-1
-          CODEBUILD_PROJECT: dbup-project
+          CODEBUILD_PROJECT: ${{ vars[format('CODEBUILD_PROJECT_{0}', github.event.inputs.environment | upper)] }}
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
