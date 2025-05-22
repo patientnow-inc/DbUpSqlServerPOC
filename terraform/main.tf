@@ -6,13 +6,18 @@ provider "aws" {
 resource "aws_s3_bucket" "dbup_artifacts" {
   bucket = "my-dbup-dev-bucket"
 
-  versioning {
-    enabled = true
-  }
-
   tags = {
     Name        = "DbUp Artifacts"
     Environment = "Dev"
+  }
+}
+
+# Separate S3 versioning configuration
+resource "aws_s3_bucket_versioning" "dbup_artifacts_versioning" {
+  bucket = aws_s3_bucket.dbup_artifacts.id
+
+  versioning_configuration {
+    status = "Enabled"
   }
 }
 
@@ -22,13 +27,15 @@ resource "aws_iam_role" "codebuild_service_role" {
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
-    Statement = [{
-      Effect = "Allow"
-      Principal = {
-        Service = "codebuild.amazonaws.com"
+    Statement = [
+      {
+        Effect = "Allow"
+        Principal = {
+          Service = "codebuild.amazonaws.com"
+        }
+        Action = "sts:AssumeRole"
       }
-      Action = "sts:AssumeRole"
-    }]
+    ]
   })
 }
 
@@ -74,7 +81,7 @@ resource "aws_codebuild_project" "dbup_project" {
 
   source {
     type      = "S3"
-    location  = "${aws_s3_bucket.dbup_artifacts.bucket}/dbup.zip" # actual S3 object
+    location  = "${aws_s3_bucket.dbup_artifacts.bucket}/dbup.zip"
     buildspec = "buildspec.yml"
   }
 
@@ -83,15 +90,14 @@ resource "aws_codebuild_project" "dbup_project" {
   }
 
   environment {
-    compute_type                = "BUILD_GENERAL1_SMALL"
-    image                       = "aws/codebuild/standard:7.0"
-    type                        = "LINUX_CONTAINER"
-    environment_variables = [
-      {
-        name  = "DOTNET_ROOT"
-        value = "/usr/share/dotnet"
-      }
-    ]
+    compute_type = "BUILD_GENERAL1_SMALL"
+    image        = "aws/codebuild/standard:7.0"
+    type         = "LINUX_CONTAINER"
+
+    environment_variable {
+      name  = "DOTNET_ROOT"
+      value = "/usr/share/dotnet"
+    }
   }
 
   service_role = aws_iam_role.codebuild_service_role.arn
